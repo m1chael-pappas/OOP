@@ -41,7 +41,7 @@ class GuessingNumber
         Console.WriteLine("User 1 has set a number between 1 and 10.");
         Console.WriteLine("User 2: Try to guess the number!\n");
 
-        int guess = 0;
+        int guess;
         bool correctGuess = false;
         int attempts = 0;
 

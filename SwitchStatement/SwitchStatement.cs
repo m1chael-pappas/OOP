@@ -7,6 +7,7 @@ class Program
         {
             Console.WriteLine("Enter the number (as an integer)");
             int number = Convert.ToInt32(Console.ReadLine());
+            int min = 1;
             switch (number)
             {
                 case 1:
