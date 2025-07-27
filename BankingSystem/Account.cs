@@ -1,15 +1,9 @@
 namespace BankingSystem
 {
-    public class Account
+    public class Account(string name, decimal balance)
     {
-        private decimal _balance;
-        private string _name;
-
-        public Account(string name, decimal balance)
-        {
-            _name = name;
-            _balance = balance;
-        }
+        private decimal _balance = balance;
+        private string _name = name;
 
         public string Name
         {
