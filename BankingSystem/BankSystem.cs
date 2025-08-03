@@ -9,15 +9,12 @@ namespace BankingSystem
         Transfer = 2,
         Print = 3,
         AddAccount = 4,
-        Rollback = 5,
+        TransactionHistory = 5,
         Quit = 6,
     }
 
     class BankSystem
     {
-        // Store the last transaction for rollback functionality
-        private static object? lastTransaction = null;
-
         static MenuOption ReadUserOption()
         {
             int choice;
@@ -36,7 +33,7 @@ namespace BankingSystem
 │  🔄  3. Transfer Money                      │
 │  📊  4. Print Account Details               │
 │  👤  5. Add New Account                     │
-│  ↩️   6. Rollback Last Transaction          │
+│  📋  6. Transaction History & Rollback      │
 │  🚪  7. Exit System                         │
 │                                             │
 └─────────────────────────────────────────────┘
@@ -203,9 +200,9 @@ namespace BankingSystem
             try
             {
                 decimal amount = Convert.ToDecimal(Console.ReadLine());
+
                 DepositTransaction transaction = new(account, amount);
-                Bank.ExecuteTransaction(transaction);
-                lastTransaction = transaction;
+                bank.ExecuteTransaction(transaction);
                 transaction.Print();
 
                 Console.ForegroundColor = ConsoleColor.Green;
@@ -236,67 +233,6 @@ namespace BankingSystem
             Console.ReadKey();
         }
 
-        static void DoRollback()
-        {
-            Console.Clear();
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("↩️ === ROLLBACK LAST TRANSACTION === ↩️");
-            Console.ResetColor();
-
-            if (lastTransaction == null)
-            {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine("⚠️ No transaction available to rollback.");
-                Console.ResetColor();
-                Console.WriteLine("\nPress any key to continue...");
-                Console.ReadKey();
-                return;
-            }
-
-            try
-            {
-                if (lastTransaction is WithdrawTransaction withdrawTx)
-                {
-                    Console.WriteLine("Rolling back withdraw transaction...");
-                    withdrawTx.Rollback();
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("✅ Withdraw transaction successfully rolled back!");
-                    Console.ResetColor();
-                    withdrawTx.Print();
-                }
-                else if (lastTransaction is DepositTransaction depositTx)
-                {
-                    Console.WriteLine("Rolling back deposit transaction...");
-                    depositTx.Rollback();
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("✅ Deposit transaction successfully rolled back!");
-                    Console.ResetColor();
-                    depositTx.Print();
-                }
-                else if (lastTransaction is TransferTransaction transferTx)
-                {
-                    Console.WriteLine("Rolling back transfer transaction...");
-                    transferTx.Rollback();
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("✅ Transfer transaction successfully rolled back!");
-                    Console.ResetColor();
-                    transferTx.Print();
-                }
-
-                // Clear the last transaction after successful rollback
-                lastTransaction = null;
-            }
-            catch (InvalidOperationException ex)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"❌ Rollback failed: {ex.Message}");
-                Console.ResetColor();
-            }
-
-            Console.WriteLine("\nPress any key to continue...");
-            Console.ReadKey();
-        }
-
         static void DoWithdraw(Bank bank)
         {
             Console.Clear();
@@ -320,8 +256,7 @@ namespace BankingSystem
                 decimal amount = Convert.ToDecimal(Console.ReadLine());
 
                 WithdrawTransaction transaction = new(account, amount);
-                Bank.ExecuteTransaction(transaction);
-                lastTransaction = transaction;
+                bank.ExecuteTransaction(transaction);
                 transaction.Print();
 
                 Console.ForegroundColor = ConsoleColor.Green;
@@ -395,9 +330,12 @@ namespace BankingSystem
             {
                 decimal amount = Convert.ToDecimal(Console.ReadLine());
 
-                TransferTransaction transaction = new(fromAccount, toAccount, amount);
-                Bank.ExecuteTransaction(transaction);
-                lastTransaction = transaction;
+                TransferTransaction transaction = new TransferTransaction(
+                    fromAccount,
+                    toAccount,
+                    amount
+                );
+                bank.ExecuteTransaction(transaction);
                 transaction.Print();
 
                 Console.ForegroundColor = ConsoleColor.Green;
@@ -468,6 +406,87 @@ namespace BankingSystem
             Console.ReadKey();
         }
 
+        static void DoTransactionHistory(Bank bank)
+        {
+            Console.Clear();
+            bank.PrintTransactionHistory();
+
+            if (bank.TransactionCount == 0)
+            {
+                Console.WriteLine("\nPress any key to continue...");
+                Console.ReadKey();
+                return;
+            }
+
+            Console.WriteLine("\nWould you like to rollback a transaction? (y/n): ");
+            string? response = Console.ReadLine();
+
+            if (response?.ToLower() == "y" || response?.ToLower() == "yes")
+            {
+                DoRollback(bank);
+            }
+        }
+
+        static void DoRollback(Bank bank)
+        {
+            Console.WriteLine("\nEnter the transaction number to rollback: ");
+
+            try
+            {
+                int transactionNumber = Convert.ToInt32(Console.ReadLine());
+                int index = transactionNumber - 1; // Convert to 0-based index
+
+                Transaction? transaction = bank.GetTransaction(index);
+
+                if (transaction == null)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(
+                        $"❌ Invalid transaction number! Please enter a number between 1 and {bank.TransactionCount}."
+                    );
+                    Console.ResetColor();
+                }
+                else
+                {
+                    try
+                    {
+                        Console.WriteLine(
+                            $"\nAttempting to rollback transaction #{transactionNumber}..."
+                        );
+                        Bank.RollbackTransaction(transaction);
+
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("✅ Transaction successfully rolled back!");
+                        Console.ResetColor();
+
+                        Console.WriteLine("\nUpdated transaction details:");
+                        transaction.Print();
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"❌ Rollback failed: {ex.Message}");
+                        Console.ResetColor();
+                    }
+                }
+            }
+            catch (FormatException)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("❌ Invalid input! Please enter a valid transaction number.");
+                Console.ResetColor();
+            }
+            catch (OverflowException)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("❌ Number too large! Please enter a valid transaction number.");
+                Console.ResetColor();
+            }
+
+            Console.WriteLine("\nPress any key to continue...");
+            Console.ReadKey();
+        }
+
         static void DisplayWelcomeBanner()
         {
             Console.Clear();
@@ -495,9 +514,9 @@ namespace BankingSystem
         static void Main(string[] args)
         {
             DisplayWelcomeBanner();
+
             Bank bank = new();
 
-            // Testing data
             bank.AddAccount(new Account("John Smith", 1000.00m));
             bank.AddAccount(new Account("Jane Doe", 500.00m));
             bank.AddAccount(new Account("Bob Johnson", 2000.00m));
@@ -529,8 +548,8 @@ namespace BankingSystem
                         DoAddAccount(bank);
                         break;
 
-                    case MenuOption.Rollback:
-                        DoRollback();
+                    case MenuOption.TransactionHistory:
+                        DoTransactionHistory(bank);
                         break;
 
                     case MenuOption.Quit:

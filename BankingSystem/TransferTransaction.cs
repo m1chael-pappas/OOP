@@ -1,32 +1,27 @@
+using System;
+
 namespace BankingSystem
 {
     public class TransferTransaction(Account fromAccount, Account toAccount, decimal amount)
+        : Transaction(amount)
     {
         private readonly Account _fromAccount = fromAccount;
         private readonly Account _toAccount = toAccount;
-        private readonly decimal _amount = amount;
         private readonly DepositTransaction _deposit = new(toAccount, amount);
         private readonly WithdrawTransaction _withdraw = new(fromAccount, amount);
-        private bool _executed = false;
-        private bool _reversed = false;
 
-        public bool Executed => _executed;
-
-        public bool Success => _deposit.Success && _withdraw.Success;
-
-        public bool Reversed => _reversed;
-
-        public void Print()
+        public override void Print()
         {
             Console.WriteLine($"Transfer Transaction Details:");
             Console.WriteLine($"From Account: {_fromAccount.Name}");
             Console.WriteLine($"To Account: {_toAccount.Name}");
             Console.WriteLine($"Amount: ${_amount:F2}");
             Console.WriteLine($"Executed: {_executed}");
-            Console.WriteLine($"Success: {Success}");
+            Console.WriteLine($"Success: {_success}");
             Console.WriteLine($"Reversed: {_reversed}");
+            Console.WriteLine($"Date/Time: {_dateStamp:yyyy-MM-dd HH:mm:ss}");
 
-            if (Success)
+            if (_success)
             {
                 Console.WriteLine(
                     $"Successfully transferred ${_amount:F2} from {_fromAccount.Name}'s account to {_toAccount.Name}'s account"
@@ -40,16 +35,9 @@ namespace BankingSystem
             _deposit.Print();
         }
 
-        public void Execute()
+        public override void Execute()
         {
-            if (_executed)
-            {
-                throw new InvalidOperationException(
-                    "Transfer transaction has already been attempted."
-                );
-            }
-
-            _executed = true;
+            base.Execute();
 
             if (_fromAccount.Balance < _amount)
             {
@@ -61,6 +49,11 @@ namespace BankingSystem
                 _withdraw.Execute();
 
                 _deposit.Execute();
+
+                if (_withdraw.Success && _deposit.Success)
+                {
+                    _success = true;
+                }
             }
             catch (InvalidOperationException)
             {
@@ -72,21 +65,9 @@ namespace BankingSystem
             }
         }
 
-        public void Rollback()
+        public override void Rollback()
         {
-            if (!_executed || !Success)
-            {
-                throw new InvalidOperationException(
-                    "Cannot rollback: transfer transaction was not successfully executed."
-                );
-            }
-
-            if (_reversed)
-            {
-                throw new InvalidOperationException(
-                    "Transfer transaction has already been reversed."
-                );
-            }
+            base.Rollback();
 
             if (_toAccount.Balance < _amount)
             {
@@ -98,7 +79,6 @@ namespace BankingSystem
             try
             {
                 _deposit.Rollback();
-
                 _withdraw.Rollback();
 
                 _reversed = true;

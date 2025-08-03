@@ -1,20 +1,12 @@
+using System;
+
 namespace BankingSystem
 {
-    public class WithdrawTransaction(Account account, decimal amount)
+    public class WithdrawTransaction(Account account, decimal amount) : Transaction(amount)
     {
-        // Fields
         private readonly Account _account = account;
-        private readonly decimal _amount = amount;
-        private bool _executed = false;
-        private bool _success = false;
-        private bool _reversed = false;
 
-        // Properties
-        public bool Executed => _executed;
-        public bool Success => _success;
-        public bool Reversed => _reversed;
-
-        public void Print()
+        public override void Print()
         {
             Console.WriteLine($"Withdraw Transaction Details:");
             Console.WriteLine($"Account: {_account.Name}");
@@ -22,6 +14,7 @@ namespace BankingSystem
             Console.WriteLine($"Executed: {_executed}");
             Console.WriteLine($"Success: {_success}");
             Console.WriteLine($"Reversed: {_reversed}");
+            Console.WriteLine($"Date/Time: {_dateStamp:yyyy-MM-dd HH:mm:ss}");
 
             if (_success)
             {
@@ -32,14 +25,9 @@ namespace BankingSystem
             Console.WriteLine("------------------------");
         }
 
-        public void Execute()
+        public override void Execute()
         {
-            if (_executed)
-            {
-                throw new InvalidOperationException("Transaction has already been attempted.");
-            }
-
-            _executed = true;
+            base.Execute();
 
             if (_account.Balance < _amount)
             {
@@ -53,19 +41,9 @@ namespace BankingSystem
             }
         }
 
-        public void Rollback()
+        public override void Rollback()
         {
-            if (!_executed || !_success)
-            {
-                throw new InvalidOperationException(
-                    "Cannot rollback: transaction was not successfully executed."
-                );
-            }
-
-            if (_reversed)
-            {
-                throw new InvalidOperationException("Transaction has already been reversed.");
-            }
+            base.Rollback();
 
             bool result = _account.Deposit(_amount);
             if (result)
