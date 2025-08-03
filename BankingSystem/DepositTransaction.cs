@@ -1,21 +1,12 @@
 namespace BankingSystem
 {
-    public class DepositTransaction
+    public class DepositTransaction(Account account, decimal amount)
     {
-        private Account _account;
-        private decimal _amount;
-        private bool _executed;
-        private bool _success;
-        private bool _reversed;
-
-        public DepositTransaction(Account account, decimal amount)
-        {
-            _account = account;
-            _amount = amount;
-            _executed = false;
-            _success = false;
-            _reversed = false;
-        }
+        private readonly Account _account = account;
+        private readonly decimal _amount = amount;
+        private bool _executed = false;
+        private bool _success = false;
+        private bool _reversed = false;
 
         public bool Executed
         {

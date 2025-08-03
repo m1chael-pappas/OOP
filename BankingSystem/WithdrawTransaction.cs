@@ -1,36 +1,18 @@
 namespace BankingSystem
 {
-    public class WithdrawTransaction
+    public class WithdrawTransaction(Account account, decimal amount)
     {
-        private Account _account;
-        private decimal _amount;
-        private bool _executed;
-        private bool _success;
-        private bool _reversed;
+        // Fields
+        private readonly Account _account = account;
+        private readonly decimal _amount = amount;
+        private bool _executed = false;
+        private bool _success = false;
+        private bool _reversed = false;
 
-        public WithdrawTransaction(Account account, decimal amount)
-        {
-            _account = account;
-            _amount = amount;
-            _executed = false;
-            _success = false;
-            _reversed = false;
-        }
-
-        public bool Executed
-        {
-            get { return _executed; }
-        }
-
-        public bool Success
-        {
-            get { return _success; }
-        }
-
-        public bool Reversed
-        {
-            get { return _reversed; }
-        }
+        // Properties
+        public bool Executed => _executed;
+        public bool Success => _success;
+        public bool Reversed => _reversed;
 
         public void Print()
         {

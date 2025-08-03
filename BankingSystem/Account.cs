@@ -3,17 +3,10 @@ namespace BankingSystem
     public class Account(string name, decimal balance)
     {
         private decimal _balance = balance;
-        private string _name = name;
+        private readonly string _name = name;
 
-        public string Name
-        {
-            get { return _name; }
-        }
-
-        public decimal Balance
-        {
-            get { return _balance; }
-        }
+        public string Name => _name;
+        public decimal Balance => _balance;
 
         public bool Deposit(decimal amount)
         {
@@ -35,11 +28,11 @@ namespace BankingSystem
             return false;
         }
 
-        public void Print()
-        {
-            Console.WriteLine($"Account Name: {_name}");
-            Console.WriteLine($"Current Balance: ${_balance:F2}");
-            Console.WriteLine("------------------------");
-        }
+        // public void Print()
+        // {
+        //     Console.WriteLine($"Account Name: {_name}");
+        //     Console.WriteLine($"Current Balance: ${_balance:F2}");
+        //     Console.WriteLine("------------------------");
+        // }
     }
 }

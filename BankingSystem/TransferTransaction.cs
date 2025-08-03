@@ -10,20 +10,11 @@ namespace BankingSystem
         private bool _executed = false;
         private bool _reversed = false;
 
-        public bool Executed
-        {
-            get { return _executed; }
-        }
+        public bool Executed => _executed;
 
-        public bool Success
-        {
-            get { return _deposit.Success && _withdraw.Success; }
-        }
+        public bool Success => _deposit.Success && _withdraw.Success;
 
-        public bool Reversed
-        {
-            get { return _reversed; }
-        }
+        public bool Reversed => _reversed;
 
         public void Print()
         {
