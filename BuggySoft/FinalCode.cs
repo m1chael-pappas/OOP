@@ -1,3 +1,6 @@
+using System;
+using System.Globalization;
+
 namespace BuggySoft
 {
     #region Task Class
@@ -10,16 +13,29 @@ namespace BuggySoft
         public string Description { get; set; } = description;
         public DateTime DueDate { get; set; } = dueDate;
         public bool IsImportant { get; set; } = isImportant;
+
+        // Australian culture for consistent date formatting
+        private static readonly CultureInfo AustralianCulture = new("en-AU");
         #endregion
 
         #region Public Methods
         /// <summary>
-        /// Gets a formatted string representation of the task for display
+        /// Gets a formatted string representation of the task for display in Australian format
         /// </summary>
         public string GetDisplayString()
         {
-            string taskInfo = $"{Description} ({DueDate:MM/dd/yyyy})";
+            string taskInfo =
+                $"{Description} ({DueDate.ToString("dd/MM/yyyy", AustralianCulture)})";
             return taskInfo.Length > 28 ? taskInfo[..28] : taskInfo;
+        }
+
+        /// <summary>
+        /// Gets the full task details for detailed display
+        /// </summary>
+        public string GetFullDetails()
+        {
+            return $"{Description} - Due: {DueDate.ToString("dd/MM/yyyy", AustralianCulture)}"
+                + (IsImportant ? " [IMPORTANT]" : "");
         }
         #endregion
     }
@@ -118,9 +134,13 @@ namespace BuggySoft
     {
         #region Fields and Constructor
         private readonly Dictionary<string, Category> categories;
+        private static readonly CultureInfo AustralianCulture = new CultureInfo("en-AU");
 
         public TaskPlanner()
         {
+            Thread.CurrentThread.CurrentCulture = AustralianCulture;
+            Thread.CurrentThread.CurrentUICulture = AustralianCulture;
+
             categories = new Dictionary<string, Category>(StringComparer.OrdinalIgnoreCase)
             {
                 { "Personal", new Category("Personal") },
@@ -165,7 +185,11 @@ namespace BuggySoft
 
             // Display table header
             Console.ForegroundColor = ConsoleColor.Blue;
-            Console.WriteLine(new string(' ', 15) + "TASK PLANNER");
+            Console.WriteLine(new string(' ', 15) + "TASK PLANNER ");
+            Console.WriteLine(new string('-', 100));
+            Console.WriteLine(
+                $"Current Date: {DateTime.Now.ToString("dddd, dd MMMM yyyy", AustralianCulture)}"
+            );
             Console.WriteLine(new string('-', 100));
 
             // Dynamic header based on existing categories
@@ -233,7 +257,7 @@ namespace BuggySoft
             {
                 var task = category.Tasks[i];
                 Console.ForegroundColor = task.IsImportant ? ConsoleColor.Red : ConsoleColor.White;
-                Console.WriteLine($"{i}. {task.GetDisplayString()}");
+                Console.WriteLine($"{i}. {task.GetFullDetails()}");
                 Console.ResetColor();
             }
         }
@@ -244,9 +268,19 @@ namespace BuggySoft
         private static void DisplayError(string message)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Error: {message}");
+            Console.WriteLine($"✗ Error: {message}");
             Console.ResetColor();
             PauseForUser();
+        }
+
+        /// <summary>
+        /// Displays a success message
+        /// </summary>
+        private static void DisplaySuccess(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"✓ {message}");
+            Console.ResetColor();
         }
         #endregion
 
@@ -291,7 +325,7 @@ namespace BuggySoft
 
         #region Task Operations
         /// <summary>
-        /// Adds a new task to a category
+        /// Adds a new task to a category with enhanced validation
         /// </summary>
         private void AddNewTask()
         {
@@ -299,16 +333,9 @@ namespace BuggySoft
             if (category == null)
                 return;
 
-            Console.Write("Enter task description (max 30 characters): ");
-            string? description = Console.ReadLine()?.Trim();
+            string description = GetValidatedTaskDescription();
             if (string.IsNullOrEmpty(description))
-            {
-                DisplayError("Task description cannot be empty.");
                 return;
-            }
-
-            if (description.Length > 30)
-                description = description.Substring(0, 30);
 
             DateTime dueDate = GetDueDateFromUser();
             bool isImportant = GetImportanceFromUser();
@@ -316,10 +343,63 @@ namespace BuggySoft
             var task = new Task(description, dueDate, isImportant);
             category.AddTask(task);
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"Task '{description}' added successfully to {category.Name}!");
-            Console.ResetColor();
+            DisplaySuccess($"Task '{description}' added successfully to {category.Name}!");
+            Console.WriteLine(
+                $"Added on: {DateTime.Now.ToString("dd/MM/yyyy HH:mm", AustralianCulture)}"
+            );
             PauseForUser();
+        }
+
+        /// <summary>
+        /// Gets a validated task description from user input
+        /// </summary>
+        private static string GetValidatedTaskDescription()
+        {
+            const int maxAttempts = 3;
+            int attempts = 0;
+
+            while (attempts < maxAttempts)
+            {
+                Console.Write("Enter task description (3-30 characters): ");
+                string? description = Console.ReadLine()?.Trim();
+
+                if (string.IsNullOrWhiteSpace(description))
+                {
+                    attempts++;
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine(
+                        $"Description cannot be empty. Attempts remaining: {maxAttempts - attempts}"
+                    );
+                    Console.ResetColor();
+                    continue;
+                }
+
+                if (description.Length < 3)
+                {
+                    attempts++;
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine(
+                        $"Description must be at least 3 characters. Attempts remaining: {maxAttempts - attempts}"
+                    );
+                    Console.ResetColor();
+                    continue;
+                }
+
+                if (description.Length > 30)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine(
+                        $"Description trimmed from {description.Length} to 30 characters."
+                    );
+                    Console.ResetColor();
+                    description = description.Substring(0, 30);
+                }
+
+                return description;
+            }
+
+            DisplayError("Maximum attempts exceeded for task description.");
+            return string.Empty;
         }
 
         /// <summary>
@@ -344,9 +424,7 @@ namespace BuggySoft
             {
                 if (category.RemoveTaskAt(index))
                 {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("Task deleted successfully!");
-                    Console.ResetColor();
+                    DisplaySuccess("Task deleted successfully!");
                 }
                 else
                 {
@@ -385,9 +463,7 @@ namespace BuggySoft
                 {
                     if (category.MoveTask(fromIndex, toIndex))
                     {
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine("Task moved successfully!");
-                        Console.ResetColor();
+                        DisplaySuccess("Task moved successfully!");
                     }
                     else
                     {
@@ -439,11 +515,9 @@ namespace BuggySoft
             if (task != null)
             {
                 targetCategory.AddTask(task);
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine(
+                DisplaySuccess(
                     $"Task moved successfully from {sourceCategory.Name} to {targetCategory.Name}!"
                 );
-                Console.ResetColor();
             }
             else
             {
@@ -455,16 +529,30 @@ namespace BuggySoft
 
         #region Category Operations
         /// <summary>
-        /// Adds a new category
+        /// Adds a new category with validation
         /// </summary>
         private void AddNewCategory()
         {
-            Console.Write("Enter new category name: ");
+            Console.Write("Enter new category name (3-15 characters): ");
             string? categoryName = Console.ReadLine()?.Trim();
 
-            if (string.IsNullOrEmpty(categoryName))
+            if (string.IsNullOrWhiteSpace(categoryName))
             {
                 DisplayError("Category name cannot be empty.");
+                PauseForUser();
+                return;
+            }
+
+            if (categoryName.Length < 3)
+            {
+                DisplayError("Category name must be at least 3 characters.");
+                PauseForUser();
+                return;
+            }
+
+            if (categoryName.Length > 15)
+            {
+                DisplayError("Category name cannot exceed 15 characters.");
                 PauseForUser();
                 return;
             }
@@ -477,9 +565,7 @@ namespace BuggySoft
             }
 
             categories[categoryName] = new Category(categoryName);
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"Category '{categoryName}' added successfully!");
-            Console.ResetColor();
+            DisplaySuccess($"Category '{categoryName}' added successfully!");
             PauseForUser();
         }
 
@@ -500,18 +586,16 @@ namespace BuggySoft
                 return;
 
             Console.Write(
-                $"Are you sure you want to delete '{category.Name}' and all its tasks? (y/N): "
+                $"Are you sure you want to delete '{category.Name}' and all its {category.Tasks.Count} tasks? (y/N): "
             );
             string? confirmation = Console.ReadLine()?.Trim().ToLower();
 
             if (confirmation == "y" || confirmation == "yes")
             {
                 categories.Remove(category.Name);
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine(
+                DisplaySuccess(
                     $"Category '{category.Name}' and all its tasks deleted successfully!"
                 );
-                Console.ResetColor();
             }
             else
             {
@@ -552,33 +636,131 @@ namespace BuggySoft
         }
 
         /// <summary>
-        /// Gets due date from user input
+        /// Gets due date from user input with Australian format validation
         /// </summary>
         private static DateTime GetDueDateFromUser()
         {
-            while (true)
+            const int maxAttempts = 3;
+            int attempts = 0;
+
+            while (attempts < maxAttempts)
             {
-                Console.Write("Enter due date (MM/dd/yyyy) or press Enter for today: ");
+                Console.Write("Enter due date (DD/MM/YYYY) or press Enter for today: ");
                 string? input = Console.ReadLine()?.Trim();
 
                 if (string.IsNullOrEmpty(input))
                     return DateTime.Today;
 
-                if (DateTime.TryParse(input, out DateTime dueDate))
+                if (
+                    DateTime.TryParseExact(
+                        input,
+                        "dd/MM/yyyy",
+                        AustralianCulture,
+                        DateTimeStyles.None,
+                        out DateTime dueDate
+                    )
+                )
+                {
+                    if (dueDate < DateTime.Today)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine(
+                            "Warning: Due date is in the past. Continue anyway? (y/N): "
+                        );
+                        Console.ResetColor();
+                        string? confirm = Console.ReadLine()?.Trim().ToLower();
+                        if (confirm != "y" && confirm != "yes")
+                        {
+                            attempts++;
+                            continue;
+                        }
+                    }
                     return dueDate;
+                }
 
-                Console.WriteLine("Invalid date format. Please use MM/dd/yyyy format.");
+                string[] australianFormats =
+                {
+                    "d/M/yyyy",
+                    "dd/M/yyyy",
+                    "d/MM/yyyy",
+                    "d/M/yy",
+                    "dd/MM/yy",
+                };
+                foreach (string format in australianFormats)
+                {
+                    if (
+                        DateTime.TryParseExact(
+                            input,
+                            format,
+                            AustralianCulture,
+                            DateTimeStyles.None,
+                            out dueDate
+                        )
+                    )
+                    {
+                        if (dueDate < DateTime.Today)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine(
+                                "Warning: Due date is in the past. Continue anyway? (y/N): "
+                            );
+                            Console.ResetColor();
+                            string? confirm = Console.ReadLine()?.Trim().ToLower();
+                            if (confirm != "y" && confirm != "yes")
+                            {
+                                attempts++;
+                                continue;
+                            }
+                        }
+                        return dueDate;
+                    }
+                }
+
+                attempts++;
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine(
+                    $"Invalid date format. Please use DD/MM/YYYY format (e.g., {DateTime.Today.AddDays(7).ToString("dd/MM/yyyy", AustralianCulture)}). Attempts remaining: {maxAttempts - attempts}"
+                );
+                Console.ResetColor();
             }
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("Maximum attempts exceeded. Using today's date.");
+            Console.ResetColor();
+            return DateTime.Today;
         }
 
         /// <summary>
-        /// Gets task importance from user input
+        /// Gets task importance from user input with validation
         /// </summary>
         private static bool GetImportanceFromUser()
         {
-            Console.Write("Is this task important? (y/N): ");
-            string? input = Console.ReadLine()?.Trim().ToLower();
-            return input == "y" || input == "yes";
+            const int maxAttempts = 3;
+            int attempts = 0;
+
+            while (attempts < maxAttempts)
+            {
+                Console.Write("Is this task important? (y/N): ");
+                string? input = Console.ReadLine()?.Trim().ToLower();
+
+                if (string.IsNullOrEmpty(input) || input == "n" || input == "no")
+                    return false;
+
+                if (input == "y" || input == "yes")
+                    return true;
+
+                attempts++;
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine(
+                    $"Please enter 'y' for yes or 'n' for no. Attempts remaining: {maxAttempts - attempts}"
+                );
+                Console.ResetColor();
+            }
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("Maximum attempts exceeded. Setting task as not important.");
+            Console.ResetColor();
+            return false;
         }
 
         /// <summary>
@@ -601,6 +783,11 @@ namespace BuggySoft
     {
         static void Main(string[] args)
         {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.WriteLine("🇦🇺 Welcome to  Task Planner! 🇦🇺");
+            Console.WriteLine("Press any key to start...");
+            Console.ReadKey();
+
             var taskPlanner = new TaskPlanner();
             taskPlanner.Run();
         }

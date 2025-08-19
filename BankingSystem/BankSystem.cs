@@ -517,9 +517,9 @@ namespace BankingSystem
 
             Bank bank = new();
 
-            bank.AddAccount(new Account("John Smith", 1000.00m));
-            bank.AddAccount(new Account("Jane Doe", 500.00m));
-            bank.AddAccount(new Account("Bob Johnson", 2000.00m));
+            bank.AddAccount(new Account("John", 1000.00m));
+            bank.AddAccount(new Account("Jane", 500.00m));
+            bank.AddAccount(new Account("Bob", 2000.00m));
 
             MenuOption choice;
             do

@@ -28,11 +28,5 @@ namespace BankingSystem
             return false;
         }
 
-        // public void Print()
-        // {
-        //     Console.WriteLine($"Account Name: {_name}");
-        //     Console.WriteLine($"Current Balance: ${_balance:F2}");
-        //     Console.WriteLine("------------------------");
-        // }
     }
 }
