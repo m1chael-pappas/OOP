@@ -1,244 +1,379 @@
-﻿// namespace ReactionMachine
-// {
-//     class Tester
-//     {
-//         private static SimpleReactionController? controller;
-//         private static DummyGui? gui;
-//         private static string? displayText;
-//         private static int randomNumber;
-//         private static int passed = 0;
+﻿using System;
 
-//         static void Main(string[] args)
-//         {
-//             // run simple test
-//             SimpleTest();
-//             Console.WriteLine(
-//                 "\n=====================================\nSummary: {0} tests passed out of 38",
-//                 passed
-//             );
-//             Console.ReadKey();
-//         }
+namespace ReactionMachine
+{
+    /// <summary>
+    /// TesterHD
+    /// --------
+    /// High-Distinction test harness for the HD Reaction Controller.
+    ///
+    /// Philosophy:
+    /// - Tests are STATE-FOCUSED: each test names the current state, the event, and the expected next state/display.
+    /// - Deterministic: a Fake RNG is used; you MUST set the next delay BEFORE any transition that reads it.
+    /// - Coverage: normal flow + all HD edge cases (timeout, cheating, skips, caps, average).
+    /// - Traceable: every test has a comment explaining the intent and what requirement it proves.
+    ///
+    /// How to read an assertion:
+    ///   Expect("TAG", "ExpectedDisplay")
+    ///   TAG explains scenario; "ExpectedDisplay" is what the GUI must show right now.
+    /// </summary>
+    class TesterHD
+    {
+        // System under test (SUT)
+        private static ReactionController? controller;
+        private static DummyGui? gui;
 
-//         private static void SimpleTest()
-//         {
-//             //Construct a ReactionController
-//             controller = new SimpleReactionController();
-//             gui = new DummyGui();
+        // Probe of the GUI (single source of truth for what the player sees)
+        private static string? displayText;
 
-//             //Connect them to each other
-//             gui.Connect(controller);
-//             controller.Connect(gui, new RndGenerator());
+        // Deterministic RNG hook (we set this before transitions that read RNG)
+        private static int nextRnd;
 
-//             //Reset the components()
-//             gui.Init();
+        // Counters
+        private static int passed = 0;
+        private static int total = 0;
 
-//             //Test the SimpleReactionController
-//             //IDLE
-//             DoReset('A', controller, "Insert coin");
-//             DoGoStop('B', controller, "Insert coin");
-//             DoTicks('C', controller, 1, "Insert coin");
+        static void Main(string[] args)
+        {
+            RunAll();
+            Console.WriteLine(
+                $"\n=====================================\nSummary: {passed} tests passed out of {total}"
+            );
+        }
 
-//             //coinInserted
-//             DoInsertCoin('D', controller, "Press GO!");
+        private static void RunAll()
+        {
+            // --- Arrange (once) ---
+            controller = new ReactionController();
+            gui = new DummyGui();
+            gui.Connect(controller!);
+            controller!.Connect(gui!, new RndGenerator());
 
-//             //READY
-//             DoTicks('E', controller, 1, "Press GO!");
-//             DoInsertCoin('F', controller, "Press GO!");
+            // Small helper to reset SUT into a known baseline (Idle)
+            static void Reset(string expect)
+            {
+                // Purpose: return to Idle, clear session counters, show Insert coin
+                controller!.Init();
+                Expect("RESET", expect);
+            }
 
-//             //goStop
-//             randomNumber = 117;
-//             DoGoStop('G', controller, "Wait...");
+            // ------------------------------------------------------------
+            // 1) IDLE & COIN / BASIC NAVIGATION
+            // ------------------------------------------------------------
 
-//             //WAIT tick(s)
-//             DoTicks('H', controller, randomNumber - 1, "Wait...");
+            Reset("Insert coin");
 
-//             //RUN tick(s)
-//             DoTicks('I', controller, 1, "0.00");
-//             DoTicks('J', controller, 1, "0.01");
-//             DoTicks('K', controller, 11, "0.12");
-//             DoTicks('L', controller, 111, "1.23");
+            // Purpose: Pressing Go in Idle is a no-op (guard); remains in Idle.
+            DoGoStop("GO_NOCOIN (Idle ignores Go)", "Insert coin");
 
-//             //goStop
-//             DoGoStop('M', controller, "1.23");
+            // Purpose: Insert coin transitions Idle -> WaitingForGo, shows Press GO!.
+            DoInsertCoin("COIN -> WaitingForGo", "Press GO!");
 
-//             //STOP tick(s)
-//             DoTicks('N', controller, 299, "1.23");
-//             // *********************************new game?
-//             //tick
-//             DoTicks('O', controller, 1, "Insert coin");
+            // Purpose: WaitingForGo enforces 10s timeout if the user never presses Go.
+            DoTicks("GO_TIMEOUT (10s -> Idle)", 1000, "Insert coin");
 
-//             //IDLE coinInserted
-//             DoInsertCoin('P', controller, "Press GO!");
+            // ------------------------------------------------------------
+            // 2) CHEAT HANDLING (Go during Wait...)
+            // ------------------------------------------------------------
 
-//             //READY goStop
-//             randomNumber = 167;
-//             DoGoStop('Q', controller, "Wait...");
-//             // *********************************cheating?
-//             //WAIT tick(s) goStop
-//             DoTicks('R', controller, randomNumber - 1, "Wait...");
-//             DoGoStop('S', controller, "Insert coin");
-//             // *********************************new game?
-//             //IDLE init
-//             gui.Init();
-//             DoReset('T', controller, "Insert coin");
+            Reset("Insert coin");
+            DoInsertCoin("COIN2", "Press GO!");
 
-//             //IDLE -> READY init
-//             randomNumber = 123;
-//             DoInsertCoin('U', controller, "Press GO!");
-//             // *********************************new game?
-//             gui.Init();
-//             DoReset('V', controller, "Insert coin");
+            // Purpose: Proper entry into WaitingPeriod; RNG must be set BEFORE pressing Go.
+            GoToWait("GO_TO_WAIT (enter Wait...)", 120);
 
-//             //IDLE -> READY ->WAIT init
-//             randomNumber = 123;
-//             DoInsertCoin('W', controller, "Press GO!");
-//             DoGoStop('X', controller, "Wait...");
-//             // *********************************new game?
-//             gui.Init();
-//             DoReset('Y', controller, "Insert coin");
+            // Purpose: Pressing Go during Wait is cheating => abort session to Idle, no average.
+            DoGoStop("CHEAT (Go during Wait -> Idle)", "Insert coin");
 
-//             //IDLE -> READY -> WAIT -> RUN init
-//             randomNumber = 137;
-//             DoInsertCoin('Z', controller, "Press GO!");
-//             DoGoStop('a', controller, "Wait...");
-//             DoTicks('b', controller, randomNumber + 98, "0.98");
-//             // *********************************new game?
-//             gui.Init();
-//             DoReset('c', controller, "Insert coin");
+            // ------------------------------------------------------------
+            // 3) GAME 1 (manual stop), RESULT SKIP, GAME 2 (auto cap), RESULT AUTO
+            // ------------------------------------------------------------
 
-//             //IDLE -> READY -> WAIT -> RUN -> STOP init
-//             randomNumber = 119;
-//             DoInsertCoin('d', controller, "Press GO!");
-//             DoGoStop('e', controller, "Wait...");
-//             DoTicks('f', controller, randomNumber + 135, "1.35");
-//             DoGoStop('g', controller, "1.35");
-//             // *********************************new game?
-//             gui.Init();
-//             DoReset('h', controller, "Insert coin");
+            Reset("Insert coin");
+            DoInsertCoin("COIN3", "Press GO!");
 
-//             //IDLE -> READY -> WAIT -> RUN (timeout) -> STOP
-//             randomNumber = 120;
-//             DoInsertCoin('i', controller, "Press GO!");
-//             DoGoStop('j', controller, "Wait...");
-//             DoTicks('k', controller, randomNumber + 199, "1.99");
-//             DoTicks('l', controller, 50, "2.00");
-//         }
+            // Enter Wait, with deterministic delay 110 ticks
+            GoToWait("GO_TO_WAIT2", 110);
 
-//         private static void DoReset(char ch, IController controller, string msg)
-//         {
-//             try
-//             {
-//                 controller.Init();
-//                 GetMessage(ch, msg);
-//             }
-//             catch (Exception exception)
-//             {
-//                 Console.WriteLine(
-//                     "test {0}: failed with exception {1})",
-//                     ch,
-//                     msg,
-//                     exception.Message
-//                 );
-//             }
-//         }
+            // Purpose: Wait elapses -> Measuring starts at 0.00
+            DoTicks("WAIT_DONE -> Measuring", 110, "0.00");
 
-//         private static void DoGoStop(char ch, IController controller, string msg)
-//         {
-//             try
-//             {
-//                 controller.GoStopPressed();
-//                 GetMessage(ch, msg);
-//             }
-//             catch (Exception exception)
-//             {
-//                 Console.WriteLine(
-//                     "test {0}: failed with exception {1})",
-//                     ch,
-//                     msg,
-//                     exception.Message
-//                 );
-//             }
-//         }
+            // Purpose: Measuring updates; here, 0.05s so we can stop manually
+            DoTicks("MEASURE_0_05", 5, "0.05");
 
-//         private static void DoInsertCoin(char ch, IController controller, string msg)
-//         {
-//             try
-//             {
-//                 controller.CoinInserted();
-//                 GetMessage(ch, msg);
-//             }
-//             catch (Exception exception)
-//             {
-//                 Console.WriteLine(
-//                     "test {0}: failed with exception {1})",
-//                     ch,
-//                     msg,
-//                     exception.Message
-//                 );
-//             }
-//         }
+            // Purpose: Manual stop records 0.05s, shows result (t.tt), enters ShowResult
+            DoGoStop("STOP_0_05 -> ShowResult", "0.05");
 
-//         private static void DoTicks(char ch, IController controller, int n, string msg)
-//         {
-//             try
-//             {
-//                 for (int t = 0; t < n; t++)
-//                     controller.Tick();
-//                 GetMessage(ch, msg);
-//             }
-//             catch (Exception exception)
-//             {
-//                 Console.WriteLine(
-//                     "test {0}: failed with exception {1})",
-//                     ch,
-//                     msg,
-//                     exception.Message
-//                 );
-//             }
-//         }
+            // Purpose: Skip ShowResult hold with Go; MUST set next RNG for the next Wait BEFORE pressing
+            GoToWait("SKIP_RESULT_HOLD -> next Wait", 100);
 
-//         private static void GetMessage(char ch, string msg)
-//         {
-//             if (msg.Equals(displayText, StringComparison.CurrentCultureIgnoreCase))
-//             {
-//                 Console.WriteLine("test {0}: passed successfully", ch);
-//                 passed++;
-//             }
-//             else
-//                 Console.WriteLine(
-//                     "test {0}: failed with message ( expected {1} | received {2})",
-//                     ch,
-//                     msg,
-//                     displayText
-//                 );
-//         }
+            // Purpose: Next Wait elapses -> Measuring begins at 0.00 (Game 2)
+            DoTicks("WAIT2_DONE -> Measuring", 100, "0.00");
 
-//         private class DummyGui : IGui
-//         {
-//             private IController? controller;
+            // Purpose: Auto cap at 2.00s (no user press)
+            DoTicks("AUTO_CAP 2.00", 200, "2.00");
 
-//             public void Connect(IController controller)
-//             {
-//                 this.controller = controller;
-//             }
+            // Purpose: Auto-advance from ShowResult after 3s; set next delay BEFORE the 3s ticks
+            AutoAdvanceResultToNextWait("RESULT_HOLD3S auto -> Wait", 115);
 
-//             public void Init()
-//             {
-//                 displayText = "?reset?";
-//             }
+            // ------------------------------------------------------------
+            // 4) GAME 3 (manual short), THEN AVERAGE
+            // ------------------------------------------------------------
 
-//             public void SetDisplay(string msg)
-//             {
-//                 displayText = msg;
-//             }
-//         }
+            // Purpose: Wait elapses -> Measuring
+            DoTicks("WAIT3_DONE -> Measuring", 115, "0.00");
 
-//         private class RndGenerator : IRandom
-//         {
-//             public int GetRandom(int from, int to)
-//             {
-//                 return randomNumber;
-//             }
-//         }
-//     }
-// }
+            // Purpose: Short measure (0.12s), then manual stop
+            DoTicks("MEASURE_0_12", 12, "0.12");
+            DoGoStop("STOP_0_12 -> ShowResult", "0.12");
+
+            // Purpose: Skip result hold to Average immediately
+            DoGoStop("SKIP_TO_AVG", StartsWith("Average = "));
+
+            // Purpose: Average correctness check: (0.05 + 2.00 + 0.12) / 3 = 0.72
+            Expect("AVG_VALUE (0.72)", "Average = 0.72");
+
+            // ------------------------------------------------------------
+            // 5) MIXED SESSION: short, skip, auto, then Average (also exercise TO_AVG via Go)
+            // ------------------------------------------------------------
+
+            Reset("Insert coin");
+            DoInsertCoin("COIN4", "Press GO!");
+
+            GoToWait("GO->WAIT", 100);
+            DoTicks("WAIT_DONE4 -> Measuring", 100, "0.00");
+
+            // Manual stop at 0.01
+            DoTicks("MEASURE_0_01", 1, "0.01");
+            DoGoStop("STOP_0_01 -> ShowResult", "0.01");
+
+            // Hold for 1s (still in ShowResult), then skip to next Wait; set RNG BEFORE pressing
+            DoTicks("RESULT_HOLD_1S", 100, "0.01");
+            GoToWait("SKIP_HOLD_TO_WAIT", 100);
+
+            // Game 2
+            DoTicks("WAIT_DONE5 -> Measuring", 100, "0.00");
+            DoTicks("MEASURE_0_10", 10, "0.10");
+            DoGoStop("STOP_0_10 -> ShowResult", "0.10");
+
+            // Auto-advance to Game 3 (set RNG BEFORE the 3s hold)
+            AutoAdvanceResultToNextWait("RESULT_HOLD_AUTO", 100);
+
+            // Game 3
+            DoTicks("WAIT_DONE6 -> Measuring", 100, "0.00");
+            DoTicks("MEASURE_0_20", 20, "0.20");
+            DoGoStop("STOP_0_20 -> ShowResult", "0.20");
+
+            // Still in ShowResult; pressing Go should take us to Average immediately
+            DoGoStop("TO_AVG (Go) -> Average", StartsWith("Average = "));
+
+            // Average value check: (0.01 + 0.10 + 0.20)/3 = 0.1033.. -> 0.10
+            Expect("AVG_VAL2 (0.10)", $"Average = {((0.01 + 0.10 + 0.20) / 3):0.00}");
+
+            // Purpose: Skip Average immediately with Go -> Idle
+            DoGoStop("AVG_SKIP_END -> Idle", "Insert coin");
+
+            // ------------------------------------------------------------
+            // 6) TIMEOUT WINDOW SANITY + RE-COIN
+            // ------------------------------------------------------------
+
+            // Purpose: Insert coin; waiting half the timeout remains in WaitingForGo
+            DoInsertCoin("COIN5", "Press GO!");
+            DoTicks("GO_WAITING (still Press GO!)", 500, "Press GO!");
+
+            // Purpose: Extra coin while in WaitingForGo should not change state/display
+            DoInsertCoin("COIN_AGAIN (no effect)", "Press GO!");
+
+            // Purpose: Enter Wait then cheat again; confirm deterministic cheat abort
+            GoToWait("GO_TO_WAIT5", 150);
+            DoTicks("MID_WAIT (still Wait...)", 50, "Wait...");
+            DoGoStop("CHEAT2 -> Idle", "Insert coin");
+
+            // ------------------------------------------------------------
+            // 7) FULL-AUTO SESSION (min/max bounds) + AUTO AVERAGE END
+            // ------------------------------------------------------------
+
+            Reset("Insert coin");
+            DoInsertCoin("COIN6", "Press GO!");
+
+            // Game 1: 0.30 manual
+            GoToWait("GO_WAIT6", 125);
+            DoTicks("WAIT6_DONE", 125, "0.00");
+            DoTicks("MEAS_A_30", 30, "0.30");
+            DoGoStop("STOP_A_30", "0.30");
+            AutoAdvanceResultToNextWait("HOLD_AUTO1", 140);
+
+            // Game 2: auto-cap 2.00
+            DoTicks("WAIT7_DONE", 140, "0.00");
+            DoTicks("MEAS_B_CAP", 200, "2.00");
+            AutoAdvanceResultToNextWait("HOLD_AUTO2", 160);
+
+            // Game 3: 0.50 manual, then Average auto after 3s, then auto end after 5s
+            DoTicks("WAIT8_DONE", 160, "0.00");
+            DoTicks("MEAS_C_50", 50, "0.50");
+            DoGoStop("STOP_C_50", "0.50");
+
+            // Now tick 3s to auto-advance to Average (no Go press)
+            DoTicks("TO_AVG_AUTO (3s)", 300, StartsWith("Average = "));
+
+            // Average value: (0.30 + 2.00 + 0.50)/3 = 0.9333.. -> 0.93
+            Expect("AVG_VAL3 (0.93)", $"Average = {((0.30 + 2.00 + 0.50) / 3):0.00}");
+
+            // Let Average auto-end after 5s
+            DoTicks("AVG_ELAPSE 5s -> Idle", 500, "Insert coin");
+
+            // ------------------------------------------------------------
+            // 8) BOUNDARY CHECKS (min/max waits, cap boundary, zero)
+            // ------------------------------------------------------------
+
+            Reset("Insert coin");
+            DoInsertCoin("COIN7", "Press GO!");
+
+            // Min wait = 100; instant 0.00 then zero-time stop
+            GoToWait("GO_WAIT7 (min wait 100)", 100);
+            DoTicks("WAIT_MIN -> Measuring", 100, "0.00");
+            DoTicks("MEAS_ZERO", 0, "0.00");
+            DoGoStop("STOP_ZERO -> ShowResult", "0.00");
+
+            // Next wait uses max = 250
+            GoToWait("SKIP_RES_ZERO -> next Wait", 250);
+            DoTicks("WAIT_MAX -> Measuring", 250, "0.00");
+
+            // Cap boundary: 1.99 then next tick 2.00
+            DoTicks("MEAS_199", 199, "1.99");
+            DoTicks("MEAS_CAP final 2.00", 1, "2.00");
+
+            // Auto-advance with mid wait and small time
+            AutoAdvanceResultToNextWait("HOLD_AUTO3", 200);
+            DoTicks("WAIT_MID -> Measuring", 200, "0.00");
+            DoTicks("MEAS_10", 10, "0.10");
+            DoGoStop("STOP_0_10_B -> ShowResult", "0.10");
+
+            // Press Go to reveal Average screen (don’t validate numeric value here)
+            DoGoStop("AVG_BOUND (Average visible)", StartsWith("Average = "));
+        }
+
+        // =====================================================================
+        // Ordered helpers — enforce “set RNG BEFORE transition” discipline
+        // =====================================================================
+
+        /// <summary>
+        /// Sets the next random delay and presses Go to transition into WaitingPeriod.
+        /// Expectation after this call should be "Wait...".
+        /// </summary>
+        private static void GoToWait(string tag, int delay)
+        {
+            nextRnd = delay; // MUST be set BEFORE GoStopPressed (WaitingForGo->WaitingPeriod reads RNG)
+            controller!.GoStopPressed();
+            Expect(tag, "Wait...");
+        }
+
+        /// <summary>
+        /// Sets the next random delay and advances 3s in ShowResult to auto-transition to the next Wait.
+        /// Expectation after this call should be "Wait...".
+        /// </summary>
+        private static void AutoAdvanceResultToNextWait(string tag, int delay)
+        {
+            nextRnd = delay; // set BEFORE we tick the 3s hold; transition consumes RNG on entry to WaitingPeriod
+            for (int i = 0; i < 300; i++)
+                controller!.Tick();
+            Expect(tag, "Wait...");
+        }
+
+        // =====================================================================
+        // Generic helpers
+        // =====================================================================
+
+        /// <summary>
+        /// Marker for "starts with" expectations (useful for Average = ...).
+        /// </summary>
+        private static string StartsWith(string s) => "__STARTS__" + s;
+
+        /// <summary>
+        /// Asserts that the GUI currently shows the expected string (or prefix).
+        /// </summary>
+        private static void Expect(string tag, string expected)
+        {
+            total++;
+            bool ok;
+            if (expected.StartsWith("__STARTS__"))
+            {
+                var prefix = expected.Replace("__STARTS__", "");
+                ok =
+                    displayText != null
+                    && displayText.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+            }
+            else
+                ok = string.Equals(displayText, expected, StringComparison.OrdinalIgnoreCase);
+
+            if (ok)
+            {
+                Console.WriteLine($"test {tag}: passed");
+                passed++;
+            }
+            else
+            {
+                Console.WriteLine(
+                    $"test {tag}: failed (expected '{expected}' got '{displayText}')"
+                );
+            }
+        }
+
+        private static void DoInsertCoin(string tag, string expect)
+        {
+            controller!.CoinInserted();
+            Expect(tag, expect);
+        }
+
+        private static void DoGoStop(string tag, string expect)
+        {
+            controller!.GoStopPressed();
+            Expect(tag, expect);
+        }
+
+        private static void DoTicks(string tag, int n, string expect)
+        {
+            for (int i = 0; i < n; i++)
+                controller!.Tick();
+            Expect(tag, expect);
+        }
+
+        // =====================================================================
+        // Test doubles
+        // =====================================================================
+
+        /// <summary>
+        /// Dummy GUI that records the last displayed text so tests can assert it.
+        /// </summary>
+        private class DummyGui : IGui
+        {
+            public void Connect(IController controller) { }
+
+            public void Init()
+            {
+                displayText = "?reset?";
+            }
+
+            public void SetDisplay(string s)
+            {
+                displayText = s;
+            }
+        }
+
+        /// <summary>
+        /// Deterministic RNG. Returns 'nextRnd' clamped to the requested range.
+        /// Tests MUST set 'nextRnd' BEFORE transitions that read the RNG.
+        /// </summary>
+        private class RndGenerator : IRandom
+        {
+            public int GetRandom(int from, int to)
+            {
+                if (nextRnd < from)
+                    nextRnd = from;
+                if (nextRnd >= to)
+                    nextRnd = to - 1;
+                return nextRnd;
+            }
+        }
+    }
+}
